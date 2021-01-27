@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -14,14 +14,6 @@
  *    limitations under the License.
  */
 package org.apache.ibatis.executor;
-
-import static org.apache.ibatis.executor.ExecutionPlaceholder.EXECUTION_PLACEHOLDER;
-
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.apache.ibatis.cache.CacheKey;
 import org.apache.ibatis.cache.impl.PerpetualCache;
@@ -44,7 +36,22 @@ import org.apache.ibatis.session.RowBounds;
 import org.apache.ibatis.transaction.Transaction;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import static org.apache.ibatis.executor.ExecutionPlaceholder.EXECUTION_PLACEHOLDER;
+
 /**
+ * 该类实现了一级缓存{@code PerpetualCache}
+ *  如果缓存中有，就从缓存获取并返回
+ *  如果缓存没有，则交给具体的实现类查询数据库
+ *    <li>{@link SimpleExecutor}<li/>
+ *    <li>{@link ReuseExecutor}<li/>
+ *    <li>{@link BatchExecutor}<li/>
+ *
  * @author Clinton Begin
  */
 public abstract class BaseExecutor implements Executor {
@@ -136,23 +143,31 @@ public abstract class BaseExecutor implements Executor {
     return query(ms, parameter, rowBounds, resultHandler, key, boundSql);
   }
 
+  /**
+   * 该方法实现了一级缓存的逻辑
+   */
   @SuppressWarnings("unchecked")
   @Override
   public <E> List<E> query(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql) throws SQLException {
     ErrorContext.instance().resource(ms.getResource()).activity("executing a query").object(ms.getId());
+    // 1.检查Executor是否已关闭
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
+    // 2.清除缓存的条件
     if (queryStack == 0 && ms.isFlushCacheRequired()) {
       clearLocalCache();
     }
     List<E> list;
     try {
       queryStack++;
+      // 3.如果ResultHandler为空，从本地缓存中获取
       list = resultHandler == null ? (List<E>) localCache.getObject(key) : null;
       if (list != null) {
+        // todo:该方法是处理StatementType=CALLABLE
         handleLocallyCachedOutputParameters(ms, key, parameter, boundSql);
       } else {
+        // ResultHandler不为空或者缓存中没有--->去查询数据库
         list = queryFromDatabase(ms, parameter, rowBounds, resultHandler, key, boundSql);
       }
     } finally {
@@ -162,13 +177,13 @@ public abstract class BaseExecutor implements Executor {
       for (DeferredLoad deferredLoad : deferredLoads) {
         deferredLoad.load();
       }
-      // issue #601
       deferredLoads.clear();
+      // 如果Mybatis配置文件中  settings-->localCacheScope=STATEMENT时 会清除缓存
       if (configuration.getLocalCacheScope() == LocalCacheScope.STATEMENT) {
-        // issue #482
         clearLocalCache();
       }
     }
+    // 返回查询结果
     return list;
   }
 
@@ -191,11 +206,35 @@ public abstract class BaseExecutor implements Executor {
     }
   }
 
+  /**
+   * 创建缓存中存放的key
+   *    Mybatis中使用一个类{@code CacheKey}来作为缓存的key
+   *    该key由以下内容组成：
+   *      必须字段
+   *        MappedStatement#id   eg:
+   *        RowBounds#offset     eg:用于分页--偏移量
+   *        RowBounds#limit      eg:用于分页--每页数据量
+   *        BoundSql#sql         eg:执行的sql
+   *      可选字段
+   *        parameterMapping
+   *
+   *    一般查询我们可能会有带参数和不带参数以及分页情况，所以缓存的key把所有的情况都考虑进去了
+   *    不带参数  select * from table_name;
+   *    带参数    select * from table_name where column_name = #{value}
+   *    分页      select * from table_name where column_name = #{value} limit 0 3
+   *    所以缓存的key
+   *      MappedStatement的id必须一致
+   *      执行的sql语句必须一致
+   *      分页条件必须一致（没有分页的话MyBatis会给一个默认分页条件{@link RowBounds#NO_ROW_OFFSET} {@link RowBounds#NO_ROW_LIMIT}）
+   *      如果执行的sql有传入参数，这些参数必须一致
+   */
   @Override
   public CacheKey createCacheKey(MappedStatement ms, Object parameterObject, RowBounds rowBounds, BoundSql boundSql) {
+    // 1.检查Executor是否已关闭
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
+    // 2.创建CacheKey对象并设置属性
     CacheKey cacheKey = new CacheKey();
     cacheKey.update(ms.getId());
     cacheKey.update(rowBounds.getOffset());
@@ -222,9 +261,9 @@ public abstract class BaseExecutor implements Executor {
       }
     }
     if (configuration.getEnvironment() != null) {
-      // issue #176
       cacheKey.update(configuration.getEnvironment().getId());
     }
+    // 返回创建的CacheKey
     return cacheKey;
   }
 
@@ -259,6 +298,15 @@ public abstract class BaseExecutor implements Executor {
     }
   }
 
+  /**
+   * 清除缓存方法
+   *
+   * 清除缓存条件：
+   *    事务回滚
+   *    事务提交
+   *    执行更新、删除、添加操作
+   *    查询操作：Mybatis配置文件中  settings-->localCacheScope=STATEMENT时
+   */
   @Override
   public void clearLocalCache() {
     if (!closed) {
@@ -318,18 +366,28 @@ public abstract class BaseExecutor implements Executor {
     }
   }
 
+  /**
+   * 调用该方法说明从缓存中没有获取到结果，需要从数据库获取结果
+   *
+   */
   private <E> List<E> queryFromDatabase(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql) throws SQLException {
     List<E> list;
+    // 1.先给缓存中设置该key的空值
     localCache.putObject(key, EXECUTION_PLACEHOLDER);
     try {
+      // 2.调用具体实现类查库
       list = doQuery(ms, parameter, rowBounds, resultHandler, boundSql);
     } finally {
+      // 3.移除第一步给缓存中存放的临时结果
       localCache.removeObject(key);
     }
+    // 4.将最终的查询结果放到缓存
     localCache.putObject(key, list);
+    // 5.如果StatementType是CALLABLE，则会给localOutputParameterCache中存放key<-->parameter
     if (ms.getStatementType() == StatementType.CALLABLE) {
       localOutputParameterCache.putObject(key, parameter);
     }
+    // 6.返回结果
     return list;
   }
 

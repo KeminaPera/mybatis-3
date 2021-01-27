@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2019 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,15 +15,15 @@
  */
 package org.apache.ibatis.session;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
-import java.util.Properties;
-
 import org.apache.ibatis.builder.xml.XMLConfigBuilder;
 import org.apache.ibatis.exceptions.ExceptionFactory;
 import org.apache.ibatis.executor.ErrorContext;
 import org.apache.ibatis.session.defaults.DefaultSqlSessionFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.Properties;
 
 /**
  * Builds {@link SqlSession} instances.
@@ -32,6 +32,7 @@ import org.apache.ibatis.session.defaults.DefaultSqlSessionFactory;
  */
 public class SqlSessionFactoryBuilder {
 
+  // ----------------------------第一部分重载方法---------------------------------------------
   public SqlSessionFactory build(Reader reader) {
     return build(reader, null, null);
   }
@@ -44,8 +45,15 @@ public class SqlSessionFactoryBuilder {
     return build(reader, null, properties);
   }
 
+  /**
+   * 第一部分核心处理逻辑方法
+   *
+   * 使用{@link org.apache.ibatis.io.Resources#getResourceAsReader(String)}系列方法
+   * 将Mybatis核心配置文件转换成{@link Reader}
+   */
   public SqlSessionFactory build(Reader reader, String environment, Properties properties) {
     try {
+      //对Mybatis配置文件的解析细节全部由该类封装
       XMLConfigBuilder parser = new XMLConfigBuilder(reader, environment, properties);
       return build(parser.parse());
     } catch (Exception e) {
@@ -60,6 +68,7 @@ public class SqlSessionFactoryBuilder {
     }
   }
 
+  // ----------------------------第二部分重载方法---------------------------------------------
   public SqlSessionFactory build(InputStream inputStream) {
     return build(inputStream, null, null);
   }
@@ -72,8 +81,15 @@ public class SqlSessionFactoryBuilder {
     return build(inputStream, null, properties);
   }
 
+  /**
+   * 第二部分核心处理逻辑方法
+   *
+   * 使用{@link org.apache.ibatis.io.Resources#getResourceAsStream(String)}系列方法
+   * 将Mybatis核心配置文件转换成{@link InputStream}
+   */
   public SqlSessionFactory build(InputStream inputStream, String environment, Properties properties) {
     try {
+      //对Mybatis配置文件的解析细节全部由该类封装
       XMLConfigBuilder parser = new XMLConfigBuilder(inputStream, environment, properties);
       return build(parser.parse());
     } catch (Exception e) {
@@ -88,6 +104,15 @@ public class SqlSessionFactoryBuilder {
     }
   }
 
+  //----------------------------对上面2大类处理Mybatis配置文件的总结---------------------------------------------
+  // 1.创建XMLConfigBuilder对象
+  // 2.通过XMLConfigBuilder对象解析，最后得到Configuration对象
+
+
+  /**
+   * 其中Configuration包括所有对Mybatis的所有配置信息
+   * 通过Configuration对象创建SqlSessionFactory对象
+   */
   public SqlSessionFactory build(Configuration config) {
     return new DefaultSqlSessionFactory(config);
   }

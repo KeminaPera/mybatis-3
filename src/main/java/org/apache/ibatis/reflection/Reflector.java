@@ -15,6 +15,13 @@
  */
 package org.apache.ibatis.reflection;
 
+import org.apache.ibatis.reflection.invoker.AmbiguousMethodInvoker;
+import org.apache.ibatis.reflection.invoker.GetFieldInvoker;
+import org.apache.ibatis.reflection.invoker.Invoker;
+import org.apache.ibatis.reflection.invoker.MethodInvoker;
+import org.apache.ibatis.reflection.invoker.SetFieldInvoker;
+import org.apache.ibatis.reflection.property.PropertyNamer;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -34,28 +41,29 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.apache.ibatis.reflection.invoker.AmbiguousMethodInvoker;
-import org.apache.ibatis.reflection.invoker.GetFieldInvoker;
-import org.apache.ibatis.reflection.invoker.Invoker;
-import org.apache.ibatis.reflection.invoker.MethodInvoker;
-import org.apache.ibatis.reflection.invoker.SetFieldInvoker;
-import org.apache.ibatis.reflection.property.PropertyNamer;
-
 /**
+ * 该方法对入参class进行了解析，只对外暴露获取方法
+ *
  * This class represents a cached set of class definition information that
  * allows for easy mapping between property names and getter/setter methods.
  *
  * @author Clinton Begin
  */
 public class Reflector {
-
+  // 原始参数类型Object的真实类型
   private final Class<?> type;
+  // 提供了getter方法的属性
   private final String[] readablePropertyNames;
+  // 提供了setter方法的属性
   private final String[] writablePropertyNames;
+  // 属性名和setter方法的映射
   private final Map<String, Invoker> setMethods = new HashMap<>();
+  // 属性名和getter方法的映射
   private final Map<String, Invoker> getMethods = new HashMap<>();
+  //
   private final Map<String, Class<?>> setTypes = new HashMap<>();
   private final Map<String, Class<?>> getTypes = new HashMap<>();
+  // 无参构造函数
   private Constructor<?> defaultConstructor;
 
   private Map<String, String> caseInsensitivePropertyMap = new HashMap<>();

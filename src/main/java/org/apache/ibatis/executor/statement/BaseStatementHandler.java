@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2016 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,10 +15,6 @@
  */
 package org.apache.ibatis.executor.statement;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-
 import org.apache.ibatis.executor.ErrorContext;
 import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.executor.ExecutorException;
@@ -33,7 +29,41 @@ import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+
 /**
+ * 该类是对以下3个具体实现类公用逻辑的抽取和管理
+ *  {@link SimpleStatementHandler},
+ *  {@link PreparedStatementHandler},
+ *  {@link CallableStatementHandler}
+ *
+ * 回顾一下JDBC中各种Statement提供了什么功能：
+ *    {@link Statement}
+ *    PreparedStatement:
+ *    CallableStatement:
+ *
+ *  <p>
+ * 上面3者的继承关系：
+ *    CallableStatement ---继承---> PreparedStatement ---继承---> Statement
+ *  <p/>
+ *
+ * <p>
+ *   Statement的处理流程大致总结如下
+ *   1. 获取连接对象{@link Connection}
+ *   2. 通过{@link Connection}提供的方法获取对应的{@link Statement}
+ *        2.1 {@link Connection#createStatement()}系列方法获取{@link Statement}对象
+ *        2.2 {@link Connection#prepareStatement(String)}系列方法获取{@link java.sql.PreparedStatement}对象
+ *        2.3 {@link Connection#prepareCall(String)}系列方法获取{@link java.sql.CallableStatement}对象
+ *   3. 设置查询参数（对于sql语句参数的设置Mybatis交给{@link ParameterHandler}进行处理）
+ *   4. 执行查询（是在每个具体的Statement实现类中执行的）
+ *   5. 处理返回结果（对于结果的梳理Mybatis交给{@link ResultSetHandler}进行处理）
+ *   6. 关闭资源
+ *        6.1关闭{@link java.sql.ResultSet}是由{@code DefaultResultSetHandler#closeResultSet(ResultSet)}
+ *        6.2关闭{@link Statement}是由该类的{@code BaseStatementHandler#closeStatement(Statement)}
+ * </p>
+ *
  * @author Clinton Begin
  */
 public abstract class BaseStatementHandler implements StatementHandler {
@@ -98,6 +128,10 @@ public abstract class BaseStatementHandler implements StatementHandler {
     }
   }
 
+  /**
+   * 由于Connection中对于创建Statement、PrepareStatement、CallableStatement
+   * 提供了不同的重载方法，所以这块交给对应的实现类去实例化并返回
+   */
   protected abstract Statement instantiateStatement(Connection connection) throws SQLException;
 
   protected void setStatementTimeout(Statement stmt, Integer transactionTimeout) throws SQLException {
@@ -125,6 +159,9 @@ public abstract class BaseStatementHandler implements StatementHandler {
     }
   }
 
+  /**
+   * 关闭{@link Statement}资源
+   */
   protected void closeStatement(Statement statement) {
     try {
       if (statement != null) {

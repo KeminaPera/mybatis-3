@@ -1,0 +1,41 @@
+<!--
+
+       Copyright 2009-2021 the original author or authors.
+
+       Licensed under the Apache License, Version 2.0 (the "License");
+       you may not use this file except in compliance with the License.
+       You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+       Unless required by applicable law or agreed to in writing, software
+       distributed under the License is distributed on an "AS IS" BASIS,
+       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+       See the License for the specific language governing permissions and
+       limitations under the License.
+
+-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.keminapera.mybatis.mapper.StudentMapper">
+  <resultMap id="studentMap" type="com.keminapera.pojo.Student">
+    <id property="id" column="n_id" javaType="java.lang.Integer" jdbcType="INTEGER"/>
+    <result property="name" column="c_name" javaType="java.lang.String" jdbcType="VARCHAR"/>
+    <result property="age" column="n_age" javaType="java.lang.String" jdbcType="VARCHAR" />
+    <result property="school" column="c_school" javaType="java.util.List"/>
+  </resultMap>
+  <insert id="insertStudent" parameterType="com.keminapera.pojo.Student">
+    insert into student
+        (n_id, c_name, n_age, c_school)
+    values
+        (#{stu.id}, #{stu.name}, #{stu.age}, #{stu.school})
+  </insert>
+
+  <select id="selectAll" resultType="com.keminapera.pojo.Student" resultMap="studentMap">
+    select n_id, c_name, n_age, c_school from student;
+  </select>
+
+  <select id="selectOne" resultType="com.keminapera.pojo.Student" resultMap="studentMap">
+    select * from student where id=${id}
+  </select>
+</mapper>

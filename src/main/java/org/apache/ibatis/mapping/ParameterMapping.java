@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,25 +15,30 @@
  */
 package org.apache.ibatis.mapping;
 
-import java.sql.ResultSet;
-
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.TypeHandler;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 
+import java.sql.ResultSet;
+
 /**
+ * java对象的属性和数据库表字段的映射关系
+ *
  * @author Clinton Begin
  */
 public class ParameterMapping {
 
   private Configuration configuration;
-
+  // java对象的属性名
   private String property;
   private ParameterMode mode;
+  // java对象该属性的类型
   private Class<?> javaType = Object.class;
+  // 数据库类型
   private JdbcType jdbcType;
   private Integer numericScale;
+  // 用于java对象和数据库表记录之间的转换
   private TypeHandler<?> typeHandler;
   private String resultMapId;
   private String jdbcTypeName;

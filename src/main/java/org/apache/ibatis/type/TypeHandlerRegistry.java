@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -14,6 +14,11 @@
  *    limitations under the License.
  */
 package org.apache.ibatis.type;
+
+import org.apache.ibatis.binding.MapperMethod.ParamMap;
+import org.apache.ibatis.io.ResolverUtil;
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.Configuration;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -43,12 +48,9 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.ibatis.binding.MapperMethod.ParamMap;
-import org.apache.ibatis.io.ResolverUtil;
-import org.apache.ibatis.io.Resources;
-import org.apache.ibatis.session.Configuration;
-
 /**
+ * 该类对Mybatis中所有TypeHandler进行管理
+ *
  * @author Clinton Begin
  * @author Kazuki Shimizu
  */

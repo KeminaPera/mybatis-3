@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,14 +15,20 @@
  */
 package org.apache.ibatis.cache;
 
+import org.apache.ibatis.reflection.ArrayUtil;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
-import org.apache.ibatis.reflection.ArrayUtil;
-
 /**
+ * 该类是Mybatis中封装缓存的key
+ * 因为缓存主要用在对数据库的查询操作，由于查询操作要考虑的条件比较多 eg：查询的语句、查询语句中的参数、如果分页需要考虑分页条件等等
+ * 所以使用该类对所有查询条件进行了封装，只有所有条件完全相同时才会被认为是相同的
+ *
+ * 由于最终是作为HashMap中的key所以该类重写了{@code hashCode}和{@code equals}方法来提高性能
+ *
  * @author Clinton Begin
  */
 public class CacheKey implements Cloneable, Serializable {

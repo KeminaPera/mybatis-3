@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2019 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
+ * 用于管理Mybatis框架中所有的插件
+ *    提供了添加和获取插件的方法
+ *
  * @author Clinton Begin
  */
 public class InterceptorChain {

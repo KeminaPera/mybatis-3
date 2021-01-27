@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,15 +15,6 @@
  */
 package org.apache.ibatis.binding;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
 import org.apache.ibatis.annotations.Flush;
 import org.apache.ibatis.annotations.MapKey;
 import org.apache.ibatis.cursor.Cursor;
@@ -38,7 +29,31 @@ import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
 import org.apache.ibatis.session.SqlSession;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 /**
+ * 该类对外仅仅提供了一个构造方法MapperMethod(Class<?> mapperInterface, Method method, Configuration config)
+ * 和一个核心方法execute(SqlSession sqlSession, Object[] args)
+ *     在execute方法中可以看出Mapper代理方式最后还是走的statementId的API
+ *
+ *     1.statementId提供的API必须有一个用于标识MappedStatement对象的字符串
+ *     2.使用statementId方式时我们是直接调用SqlSession的API,而Mapper代理方式是调用的Mapper接口中的方法
+ *       如何根据mapper的方法推断出调用SqlSession中的API
+ *
+ * MapperMethod类中有3个内部类：
+ *    SqlCommand:该类负责拼装statementId和获取SqlCommandType（select|update|insert|delete|flush）
+ *    MethodSignature:该类主要通过解析Mapper方法的返回值（void|cursor|optional|具体返回值）
+ *                    来辅助MapperMethod判断调用SqlSession对应的API
+ *    ParamMap:对HashMap进行了封装重写了contains方法，当没有对应key会抛出一个BindException异常
+ *
+ *
  * @author Clinton Begin
  * @author Eduardo Macarron
  * @author Lasse Voss
@@ -216,6 +231,14 @@ public class MapperMethod {
 
   }
 
+  /**
+   * 该类封装了SQL的标识(statementId)和SqlCommand的类型(select|update|insert|delete|flush)
+   *     该类的职责：1.通过Mapper接口和Method拼接statementId
+   *               2.通过第一步得到的statementId从configuration中获取MappedStatement对象
+   *                 通过MappedStatement对象可以获取到Sql类型（select|update|insert|delete）
+   *
+   *     小结：通过Mapper代理方式statementId是和Mapper接口和方法名是紧密关联的
+   */
   public static class SqlCommand {
 
     private final String name;
@@ -224,8 +247,10 @@ public class MapperMethod {
     public SqlCommand(Configuration configuration, Class<?> mapperInterface, Method method) {
       final String methodName = method.getName();
       final Class<?> declaringClass = method.getDeclaringClass();
+      // 从configuration中获取MappedStatement
       MappedStatement ms = resolveMappedStatement(mapperInterface, methodName, declaringClass,
           configuration);
+      // 下面操作会对自己两个属性（name和type）进行赋值
       if (ms == null) {
         if (method.getAnnotation(Flush.class) != null) {
           name = null;
@@ -251,27 +276,40 @@ public class MapperMethod {
       return type;
     }
 
+    /**
+     * 从大总管configuration中通过statementId获取MappedStatement
+     */
     private MappedStatement resolveMappedStatement(Class<?> mapperInterface, String methodName,
         Class<?> declaringClass, Configuration configuration) {
+      // 拼装的statementId = Mapper接口全限定名 + 方法名
       String statementId = mapperInterface.getName() + "." + methodName;
       if (configuration.hasStatement(statementId)) {
+        // 如果有，直接返回
         return configuration.getMappedStatement(statementId);
       } else if (mapperInterface.equals(declaringClass)) {
         return null;
       }
+      // 走到这说明  configuration中没有该statementId对应的MappedStatement 且
+      //           当前方法没有在该mapperInterface接口中声明（从父接口继承的方法）
       for (Class<?> superInterface : mapperInterface.getInterfaces()) {
         if (declaringClass.isAssignableFrom(superInterface)) {
+          // 通过父接口再去找
           MappedStatement ms = resolveMappedStatement(superInterface, methodName,
               declaringClass, configuration);
           if (ms != null) {
+            // 如果获取到 则返回
             return ms;
           }
         }
       }
+      // 遍历了所有的接口都没有找到 则返回null
       return null;
     }
   }
 
+  /**
+   *
+   */
   public static class MethodSignature {
 
     private final boolean returnsMany;

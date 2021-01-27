@@ -15,10 +15,6 @@
  */
 package org.apache.ibatis.reflection;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.ibatis.reflection.factory.ObjectFactory;
 import org.apache.ibatis.reflection.property.PropertyTokenizer;
 import org.apache.ibatis.reflection.wrapper.BeanWrapper;
@@ -26,24 +22,43 @@ import org.apache.ibatis.reflection.wrapper.CollectionWrapper;
 import org.apache.ibatis.reflection.wrapper.MapWrapper;
 import org.apache.ibatis.reflection.wrapper.ObjectWrapper;
 import org.apache.ibatis.reflection.wrapper.ObjectWrapperFactory;
+import org.apache.ibatis.session.ResultHandler;
+import org.apache.ibatis.session.RowBounds;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author Clinton Begin
  */
 public class MetaObject {
 
+  // 该对象是SQL所需的数据，可以是map,集合，bean实体对象
   private final Object originalObject;
+  // 根据originalObject的真实类型，将其交给对应的Wrapper来处理
   private final ObjectWrapper objectWrapper;
   private final ObjectFactory objectFactory;
   private final ObjectWrapperFactory objectWrapperFactory;
   private final ReflectorFactory reflectorFactory;
 
+  /**
+   * 私有构造方法
+   */
   private MetaObject(Object object, ObjectFactory objectFactory, ObjectWrapperFactory objectWrapperFactory, ReflectorFactory reflectorFactory) {
     this.originalObject = object;
     this.objectFactory = objectFactory;
     this.objectWrapperFactory = objectWrapperFactory;
     this.reflectorFactory = reflectorFactory;
 
+    /**
+     * 根据object的真实类型  创建对应的包装类
+     * 此处的object是SqlSession中相关API传入的object参数，是最终替换SQL的入参
+     * {@link org.apache.ibatis.session.SqlSession#insert(String, Object)}
+     * {@link org.apache.ibatis.session.SqlSession#update(String, Object)}
+     * {@link org.apache.ibatis.session.SqlSession#delete(String, Object)}
+     * {@link org.apache.ibatis.session.SqlSession#select(String, Object, RowBounds, ResultHandler)}}
+     */
     if (object instanceof ObjectWrapper) {
       this.objectWrapper = (ObjectWrapper) object;
     } else if (objectWrapperFactory.hasWrapperFor(object)) {
@@ -57,6 +72,10 @@ public class MetaObject {
     }
   }
 
+  /**
+   * 对外提供的静态构造方法
+   * 由于唯一构造是私有的
+   */
   public static MetaObject forObject(Object object, ObjectFactory objectFactory, ObjectWrapperFactory objectWrapperFactory, ReflectorFactory reflectorFactory) {
     if (object == null) {
       return SystemMetaObject.NULL_META_OBJECT;

@@ -71,19 +71,24 @@ public class DefaultParameterHandler implements ParameterHandler {
           if (boundSql.hasAdditionalParameter(propertyName)) { // issue #448 ask first for additional params
             value = boundSql.getAdditionalParameter(propertyName);
           } else if (parameterObject == null) {
+            // 入参为null，则value赋值为null
             value = null;
           } else if (typeHandlerRegistry.hasTypeHandler(parameterObject.getClass())) {
+            // 如果该参数有对应的TypeHandler，直接交给TypeHandler转换
             value = parameterObject;
           } else {
+            //
             MetaObject metaObject = configuration.newMetaObject(parameterObject);
             value = metaObject.getValue(propertyName);
           }
           TypeHandler typeHandler = parameterMapping.getTypeHandler();
           JdbcType jdbcType = parameterMapping.getJdbcType();
+          // 处理null
           if (value == null && jdbcType == null) {
             jdbcType = configuration.getJdbcTypeForNull();
           }
           try {
+            //
             typeHandler.setParameter(ps, i + 1, value, jdbcType);
           } catch (TypeException | SQLException e) {
             throw new TypeException("Could not set parameters for mapping: " + parameterMapping + ". Cause: " + e, e);

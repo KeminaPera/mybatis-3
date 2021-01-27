@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
+ *    Copyright 2009-2021 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -14,12 +14,6 @@
  *    limitations under the License.
  */
 package org.apache.ibatis.builder.xml;
-
-import java.io.InputStream;
-import java.io.Reader;
-import java.util.Properties;
-
-import javax.sql.DataSource;
 
 import org.apache.ibatis.builder.BaseBuilder;
 import org.apache.ibatis.builder.BuilderException;
@@ -47,7 +41,14 @@ import org.apache.ibatis.session.LocalCacheScope;
 import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.type.JdbcType;
 
+import javax.sql.DataSource;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.Properties;
+
 /**
+ * 该类的职责是解析Mybatis的配置文件
+ *
  * @author Clinton Begin
  * @author Kazuki Shimizu
  */
@@ -58,6 +59,7 @@ public class XMLConfigBuilder extends BaseBuilder {
   private String environment;
   private final ReflectorFactory localReflectorFactory = new DefaultReflectorFactory();
 
+  // ----------------------------第一部分构造重载方法---------------------------------------------
   public XMLConfigBuilder(Reader reader) {
     this(reader, null, null);
   }
@@ -66,10 +68,15 @@ public class XMLConfigBuilder extends BaseBuilder {
     this(reader, environment, null);
   }
 
+
+  /**
+   * 和{@link org.apache.ibatis.session.SqlSessionFactoryBuilder#build(Reader, String, Properties)}对应
+   */
   public XMLConfigBuilder(Reader reader, String environment, Properties props) {
     this(new XPathParser(reader, true, props, new XMLMapperEntityResolver()), environment, props);
   }
 
+  // ----------------------------第二部分构造重载方法---------------------------------------------
   public XMLConfigBuilder(InputStream inputStream) {
     this(inputStream, null, null);
   }
@@ -78,11 +85,23 @@ public class XMLConfigBuilder extends BaseBuilder {
     this(inputStream, environment, null);
   }
 
+
+  /**
+   * 和{@link org.apache.ibatis.session.SqlSessionFactoryBuilder#build(InputStream, String, Properties)}对应
+   */
   public XMLConfigBuilder(InputStream inputStream, String environment, Properties props) {
     this(new XPathParser(inputStream, true, props, new XMLMapperEntityResolver()), environment, props);
   }
 
+  /**
+   * 核心构造函数
+   *    通过Reader或InputStream构造一个XPathParser对象
+   * @param parser
+   * @param environment
+   * @param props
+   */
   private XMLConfigBuilder(XPathParser parser, String environment, Properties props) {
+    // 直接new一个Configuration对象
     super(new Configuration());
     ErrorContext.instance().resource("SQL Mapper Configuration");
     this.configuration.setVariables(props);
@@ -91,6 +110,9 @@ public class XMLConfigBuilder extends BaseBuilder {
     this.parser = parser;
   }
 
+  /**
+   * 对外暴露的解析方法
+   */
   public Configuration parse() {
     if (parsed) {
       throw new BuilderException("Each XMLConfigBuilder can only be used once.");
@@ -100,6 +122,24 @@ public class XMLConfigBuilder extends BaseBuilder {
     return configuration;
   }
 
+  /**
+   * 该方法定义解析Mybatis配置文件每个xml节点的解析细节及顺序
+   *  官网配置文件结构地址：https://mybatis.org/mybatis-3/configuration.html
+   *  配置结构如下：
+   *  configuration
+   *    properties
+   *    settings
+   *    typeAliases
+   *    typeHandlers
+   *    objectFactory
+   *    plugins
+   *    environments
+   *      environment
+   *        transactionManager
+   *        datasource
+   *    databaseIdProvider
+   *    mappers
+   */
   private void parseConfiguration(XNode root) {
     try {
       // issue #117 read properties first
@@ -157,6 +197,15 @@ public class XMLConfigBuilder extends BaseBuilder {
     configuration.setLogImpl(logImpl);
   }
 
+  /**
+   * 别名最后注册到{@link Configuration}的成员变量{@link org.apache.ibatis.type.TypeAliasRegistry}
+   * 类型别名主要来自2大部分：
+   *     系统内置的别名：
+   *        1.构造TypeAliasRegistry对象时初始化的（查看TypeAliasRegistry唯一的构造方法）
+   *        2.构造Configuration对象时构造方法中给TypeAliasRegistry中注册的别名
+   *     自定义的别名：
+   *        定义在Mybatis的配置文件的typeAliases标签内
+   */
   private void typeAliasesElement(XNode parent) {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
@@ -181,6 +230,19 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析Mybatis配置文件中plugins标签
+   * 最终会将解析出来的{@link Interceptor}对象存放在Configuration的成员属性{@link org.apache.ibatis.plugin.InterceptorChain}
+   * Mybatis中所有拦截器都交给{@link org.apache.ibatis.plugin.InterceptorChain}对象进行管理
+   *
+   * 拦截器会作用于Mybatis的四大组件：
+   *    1.{@link org.apache.ibatis.executor.Executor}
+   *    2.{@link org.apache.ibatis.executor.parameter.ParameterHandler}
+   *    3.{@link org.apache.ibatis.executor.resultset.ResultSetHandler}
+   *    4.{@link org.apache.ibatis.executor.statement.StatementHandler}
+   *
+   * 官网地址：https://mybatis.org/mybatis-3/configuration.html#plugins
+   */
   private void pluginElement(XNode parent) throws Exception {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
@@ -333,6 +395,13 @@ public class XMLConfigBuilder extends BaseBuilder {
     throw new BuilderException("Environment declaration requires a DataSourceFactory.");
   }
 
+  /**
+   * 解析Mybatis配置文件中的{@code typeHandlers}标签
+   *    最后将解析出来的{@link org.apache.ibatis.type.TypeHandler}
+   *    存放在{@link Configuration}的{@link org.apache.ibatis.type.TypeHandlerRegistry}对象中
+   *
+   * 官网地址：https://mybatis.org/mybatis-3/configuration.html#typeHandlers
+   */
   private void typeHandlerElement(XNode parent) {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
@@ -360,6 +429,12 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  /**
+   * 解析Mybatis配置文件中的{@code mappers}标签
+   *    最后将Mapper类存放到{@link Configuration}的{@link org.apache.ibatis.binding.MapperRegistry}对象中
+   *
+   * 官网地址：https://mybatis.org/mybatis-3/configuration.html#mappers
+   */
   private void mapperElement(XNode parent) throws Exception {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
